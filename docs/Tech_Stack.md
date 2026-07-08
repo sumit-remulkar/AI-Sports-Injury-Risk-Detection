@@ -144,3 +144,8 @@ Risk Prediction
 ↓
 
 Dashboard & Reports
+
+
+## Why This Technology Stack?
+
+This technology stack is selected because it provides high performance for video processing, scalable backend development, efficient machine learning integration, and a modern web-based user experience.
