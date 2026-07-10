@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 opencv-python
 mediapipe
 numpy
@@ -8,7 +8,8 @@ scikit-learn
 xgboost
 sqlalchemy
 psycopg2-binary
-python-jose
+python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
 python-dotenv
+email-validator
