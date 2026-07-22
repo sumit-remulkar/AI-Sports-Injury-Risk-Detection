@@ -72,3 +72,49 @@ class AthleteResponse(AthleteBase):
     class Config:
         from_attributes = True
 
+
+# ---------------------------------------------------------------------------
+# Video / Pose / Biomechanics (Milestone 2)
+# ---------------------------------------------------------------------------
+
+class VideoResponse(BaseModel):
+    video_id: UUID
+    athlete_id: UUID
+    file_name: str
+    upload_date: datetime
+    status: str
+    error_message: Optional[str] = None
+    has_annotated_video: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class FrameMetricsResponse(BaseModel):
+    frame_number: int
+    left_knee_angle: Optional[float] = None
+    right_knee_angle: Optional[float] = None
+    left_elbow_angle: Optional[float] = None
+    right_elbow_angle: Optional[float] = None
+    left_hip_angle: Optional[float] = None
+    right_hip_angle: Optional[float] = None
+    trunk_lean_deg: Optional[float] = None
+    knee_valgus_proxy: Optional[float] = None
+    knee_symmetry_diff: Optional[float] = None
+
+
+class BiomechanicsSummaryResponse(BaseModel):
+    frames_analyzed: int
+    frames_with_detection: int
+    avg_left_knee_angle: Optional[float] = None
+    avg_right_knee_angle: Optional[float] = None
+    avg_trunk_lean_deg: Optional[float] = None
+    left_knee_rom: Optional[float] = None
+    right_knee_rom: Optional[float] = None
+    knee_rom_asymmetry: Optional[float] = None
+    peak_knee_valgus_proxy: Optional[float] = None
+
+
+class VideoDetailResponse(VideoResponse):
+    biomechanics_summary: Optional[BiomechanicsSummaryResponse] = None
+

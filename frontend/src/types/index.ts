@@ -36,3 +36,46 @@ export interface AuthResponse {
 }
 
 export type RiskLevel = "low" | "moderate" | "high" | "critical";
+
+// --- Milestone 2: Video / Pose / Biomechanics ---
+
+export type VideoStatus = "uploaded" | "processing" | "completed" | "failed";
+
+export interface BiomechanicsSummary {
+  frames_analyzed: number;
+  frames_with_detection: number;
+  avg_left_knee_angle: number | null;
+  avg_right_knee_angle: number | null;
+  avg_trunk_lean_deg: number | null;
+  left_knee_rom: number | null;
+  right_knee_rom: number | null;
+  knee_rom_asymmetry: number | null;
+  peak_knee_valgus_proxy: number | null;
+}
+
+export interface VideoSummary {
+  video_id: string;
+  athlete_id: string;
+  file_name: string;
+  upload_date: string;
+  status: VideoStatus;
+  error_message: string | null;
+  has_annotated_video: boolean;
+}
+
+export interface VideoDetail extends VideoSummary {
+  biomechanics_summary: BiomechanicsSummary | null;
+}
+
+export interface FrameMetrics {
+  frame_number: number;
+  left_knee_angle: number | null;
+  right_knee_angle: number | null;
+  left_elbow_angle: number | null;
+  right_elbow_angle: number | null;
+  left_hip_angle: number | null;
+  right_hip_angle: number | null;
+  trunk_lean_deg: number | null;
+  knee_valgus_proxy: number | null;
+  knee_symmetry_diff: number | null;
+}

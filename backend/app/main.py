@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .database import engine
 from . import models
-from .routers import athlete, auth as auth_router
+from .routers import athlete, auth as auth_router, video
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -23,8 +23,10 @@ app.add_middleware(
 
 app.include_router(auth_router.router)
 app.include_router(athlete.router)
+app.include_router(video.router)
 
 
 @app.get("/")
 def root():
     return {"message": "AI Sports Injury Risk Detection Backend Running"}
+
