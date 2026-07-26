@@ -1,222 +1,145 @@
 # 🏃 AI Sports Injury Risk Detection
 
-
-
-# 📌 Milestone 1 – Project Initialization & Core Setup
-
-Milestone 1 establishes the technical foundation of the AI Sports Injury Risk Detection platform.
-
-The objective is to design the complete software architecture, database schema, authentication workflow, athlete profile management system, and project structure before implementing AI-based injury prediction.
+AI-powered platform that analyzes athlete movement videos to estimate pose,
+compute biomechanical metrics, and (eventually) predict injury risk.
 
 ---
 
-# 🎯 Milestone Objectives
+## ✅ Milestone 1 — Project Initialization & Core Setup (COMPLETE)
 
-✅ Define Injury Detection Workflow
+- ✅ System architecture & database schema (7 tables: `users`, `athlete_profiles`,
+  `uploaded_videos`, `pose_data`, `injury_predictions`, `recommendations`, `reports`)
+- ✅ Authentication — JWT + bcrypt password hashing, register/login/`/auth/me`
+- ✅ Role-Based Access Control — `athlete`, `coach`, `physiotherapist`,
+  `sports_scientist`, `admin`, enforced on every protected route
+- ✅ Athlete Profile Management — full CRUD, self-service `/athletes/me`,
+  staff roster view at `/athletes/`
+- ✅ Frontend — React + TypeScript + Vite + Tailwind CSS v4, connected to the
+  real backend (not mocked)
+- ✅ Datasets — COCO Keypoints & MPII Human Pose scripted (open, no
+  registration); Human3.6M & SportsPose flagged as registration-gated with
+  clear steps; working COCO-format pose loader + joint-angle calculator,
+  tested against a synthetic sample
 
-✅ Design System Architecture
+## ✅ Milestone 2 — Pose Estimation & Biomechanical Analysis (COMPLETE)
 
-✅ Design Database Schema
+- ✅ Pose Estimation Engine — MediaPipe `PoseLandmarker` (Tasks API), 33
+  landmarks mapped down to the 17-point COCO layout used throughout the DB
+  schema and datasets loader
+- ✅ Video Upload & Processing — validated upload, evenly-sampled frame
+  extraction (bounded per-video for synchronous processing), stored per-video
+  status (`uploaded` → `processing` → `completed`/`failed`)
+- ✅ Biomechanical Analysis — knee/elbow/hip joint angles, trunk lean, knee
+  valgus proxy (explicitly labeled as a 2D single-camera estimate, not a
+  clinical measurement)
+- ✅ Movement symmetry — compares each leg's range of motion (ROM) over the
+  whole clip, not a same-instant left/right snapshot. (Earlier version
+  compared legs frame-by-frame, which flagged normal running gait as
+  falsely "asymmetric" since legs are supposed to be out of phase mid-stride;
+  fixed and pinned with a regression test.)
+- ✅ Annotated video — skeleton overlay + knee-angle readouts burned into a
+  real, browser-playable H.264 video (re-encoded via ffmpeg; OpenCV's native
+  `mp4v` output isn't reliably browser-playable)
+- ✅ Video management — upload, list, view detail/frames, view annotated
+  video, delete (with ownership checks — a coach can view any athlete's
+  video but only the owning athlete or an admin can delete one)
 
-✅ Implement Authentication & Role-Based Access
+**Known limitations (by design, not oversights):**
+- Processing is synchronous (blocks the upload request) — fine for short
+  test clips, but real production use should move this to a background job
+  (the architecture doc's Redis/queue component exists for this reason)
+- Annotated video is built from the sampled frames pose estimation already
+  analyzed (up to 60, evenly spaced), not a frame-exact replay of the
+  original upload
+- Knee valgus proxy needs a frontal-view camera or 3D pose for a real
+  clinical reading — from a single arbitrary-angle 2D video it's directional
+  only
 
-✅ Athlete Profile Management
+## ⏳ Milestone 3 — Injury Risk Prediction & Recommendations (NOT STARTED)
 
-✅ Prepare Frontend & Backend Environment
+- ⬜ Injury risk prediction engine (combine biomechanics + training load +
+  injury history into an actual risk score)
+- ⬜ Risk scoring (Low / Moderate / High / Critical)
+- ⬜ Movement anomaly detection
+- ⬜ Corrective recommendation engine
+- ⬜ Athlete intelligence dashboards — the Dashboard's "Injury risk score"
+  widget currently shows "no data yet" on purpose; it's wired up and ready,
+  just waiting on this engine
 
-✅ Research Sports Biomechanics Datasets
+## ⏳ Milestone 4 — Analytics, Testing & Deployment (NOT STARTED)
 
----
-
-# 🏗 System Architecture
-
-```
-                 Athlete / Coach
-
-                        │
-
-                 Upload Video
-
-                        │
-
-             Frontend (React + Vite)
-
-                        │
-
-                FastAPI Backend
-
-                        │
-
-       Authentication (Supabase Auth)
-
-                        │
-
-          PostgreSQL (Supabase DB)
-
-                        │
-
-        Future AI Pose Analysis Engine
-
-                        │
-
-     Injury Risk Detection Dashboard
-```
-
----
-
-# 🔐 Authentication & Authorization
-
-Milestone 1 includes a secure authentication system using **Supabase Authentication**.
-
-### Features
-
-- Email & Password Authentication
-- Google OAuth Login
-- Secure JWT Authentication
-- Role-Based Access Control (RBAC)
-
-### User Roles
-
-| Role | Permissions |
-|-------|------------|
-| Athlete | Manage own profile & future injury reports |
-| Coach | View athlete performance & reports |
-| Admin | Platform administration |
+- ⬜ Executive dashboards, reports & PDF/Excel export ("Reports History" is
+  currently a placeholder for this)
+- ⬜ Docker containerization & cloud deployment (AWS/Azure)
+- ⬜ Final documentation & user guides
 
 ---
 
-# 👤 Athlete Profile Module
+## Tech Stack
 
-The athlete profile serves as the primary input for future AI analysis.
+**Backend:** Python, FastAPI, PostgreSQL, SQLAlchemy, JWT (`python-jose`),
+`passlib`/`bcrypt`
+**Computer Vision:** MediaPipe (Tasks API), OpenCV
+**Frontend:** React, TypeScript, Vite, Tailwind CSS v4
+**Video:** ffmpeg (required — see setup below)
 
-### Profile Information
+## Setup
 
-- Full Name
-- Date of Birth
-- Gender
-- Height
-- Weight
-- Dominant Side
-- Primary Sport
-- Playing Position
-- Experience
-- Injury History
-- Training Frequency
-- Performance Goals
+```bash
+# Backend
+python3.11 -m venv .venv   # or 3.12 -- NOT 3.14, mediapipe doesn't support it yet
+source .venv/bin/activate
+pip install -r requirements.txt
+python models/download_pose_model.py   # one-time, ~9MB pose model
+brew install ffmpeg                     # required for browser-playable annotated video
+uvicorn backend.app.main:app --reload
 
----
-
-# 🗄 Database Design
-
-Major database tables implemented during Milestone 1
-
-```
-users
-
-profiles
-
-user_roles
-
-auth
-
-future_analysis
-
-future_reports
+# Frontend (separate terminal)
+cd frontend
+npm install
+cp .env.example .env
+npm run dev
 ```
 
-Database Technology
+## Running the tests
 
-- PostgreSQL
-- Supabase
-- Row Level Security (RLS)
+```bash
+python backend/tests/test_pose_mapping.py
+python backend/tests/test_video_processing.py
+python backend/tests/test_biomechanics.py
+python backend/tests/test_annotation.py
+pip install httpx   # test-only dependency
+python backend/tests/test_upload_flow.py
+python backend/tests/test_annotated_upload_flow.py
+python backend/tests/test_delete_video.py
+cd datasets && python tests/test_pose_loader.py
+```
 
----
+All of the above should print "ALL ... TESTS PASSED".
 
-# 📂 Project Structure
+## Project Structure
 
 ```
-AI-Sports-Injury-Risk-Detection
-
-│
-
+AI-Sports-Injury-Risk-Detection/
 ├── backend/
 │   ├── app/
-│   ├── models/
-│   ├── routes/
-│   ├── schemas/
-│   ├── database.py
-│   └── main.py
-│
+│   │   ├── routers/       # auth, athlete, video
+│   │   ├── services/      # pose_estimation, biomechanics, video_processing, annotation
+│   │   ├── models.py      # SQLAlchemy models (7 tables)
+│   │   ├── schemas.py     # Pydantic request/response models
+│   │   ├── crud.py
+│   │   ├── auth.py        # JWT + password hashing
+│   │   ├── database.py
+│   │   └── main.py
+│   ├── tests/
+│   └── uploads/            # uploaded + annotated videos, per-athlete subfolders
+├── datasets/                # COCO/MPII download scripts, pose loader, synthetic sample
 ├── frontend/
-│
-├── datasets/
-│
-├── docs/
-│
-├── models/
-│
-├── tests/
-│
-├── assets/
-│   └── banner.png
-│
-├── requirements.txt
-└── README.md
+│   └── src/
+│       ├── pages/           # Login, Register, Dashboard, AthleteProfile, VideoUpload, Reports
+│       ├── components/      # Sidebar, Layout, RiskGauge, ProtectedRoute
+│       ├── context/         # AuthContext
+│       └── lib/             # api client
+├── models/                  # downloaded pose_landmarker_lite.task lives here
+└── docs/                    # original planning docs
 ```
-
----
-
-# 📚 Sports Biomechanics Datasets
-
-Research completed during Milestone 1
-
-| Dataset | Purpose |
-|----------|----------|
-| Human3.6M | Human Pose Estimation |
-| MPII Human Pose | Body Keypoint Detection |
-| COCO Keypoints | Pose Landmark Detection |
-| SportsPose | Sports Motion Analysis |
-| FIFA Injury Dataset | Injury Risk Research |
-
----
-
-# 🛠 Tech Stack
-
-### Frontend
-
-- React
-- TypeScript
-- Vite
-- Tailwind CSS
-
-### Backend
-
-- FastAPI
-- Python
-- SQLAlchemy
-- Pydantic
-- Uvicorn
-
-### Database
-
-- PostgreSQL
-- Supabase
-
-### Development Tools
-
-- Git
-- GitHub
-- VS Code
-
----
-
-# 🚀 Future Milestones
-
-### ✅ Milestone 1 (Completed)
-
-- Project Initialization
-- Database Design
-- Authentication
-- Athlete Profile Management
-- Architecture Planning
-

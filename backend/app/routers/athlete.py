@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -25,7 +27,7 @@ def get_my_profile(
 
 @router.put("/me", response_model=schemas.AthleteResponse)
 def update_my_profile(
-    athlete: schemas.AthleteUpdate,          # <-- was AthleteCreate before, that was the bug
+    athlete: schemas.AthleteUpdate,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -51,7 +53,7 @@ def get_athletes(
 
 @router.get("/{athlete_id}", response_model=schemas.AthleteResponse)
 def get_athlete(
-    athlete_id: str,
+    athlete_id: UUID,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(
         require_role("coach", "physiotherapist", "sports_scientist", "admin")
@@ -65,7 +67,7 @@ def get_athlete(
 
 @router.delete("/{athlete_id}")
 def delete_athlete(
-    athlete_id: str,
+    athlete_id: UUID,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_role("admin")),
 ):
@@ -73,4 +75,3 @@ def delete_athlete(
     if deleted is None:
         raise HTTPException(status_code=404, detail="Athlete not found")
     return {"message": "Athlete deleted successfully"}
-

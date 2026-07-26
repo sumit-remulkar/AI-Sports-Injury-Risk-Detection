@@ -70,6 +70,15 @@ class UploadedVideo(Base):
     upload_date = Column(TIMESTAMP(timezone=True), server_default=func.now())
     video_path = Column(Text)
 
+    # Added in Milestone 2: lets the API report processing progress/failure
+    # instead of the frontend having to guess from missing pose data.
+    status = Column(String, nullable=False, default="uploaded")  # uploaded | processing | completed | failed
+    error_message = Column(Text, nullable=True)
+
+    # Added for the annotated-video feature: skeleton-overlay video built
+    # from the same sampled frames pose estimation already analyzed.
+    annotated_video_path = Column(Text, nullable=True)
+
     athlete = relationship("AthleteProfile", back_populates="videos")
     pose_frames = relationship("PoseData", back_populates="video", cascade="all, delete-orphan")
 

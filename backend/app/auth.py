@@ -1,4 +1,5 @@
 import os
+import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -58,10 +59,14 @@ def get_current_user(
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
+        raw_user_id = payload.get("sub")
+        if raw_user_id is None:
             raise credentials_exception
-    except JWTError:
+        # Explicit cast rather than relying on the DB driver to coerce a
+        # plain string into the UUID column -- also turns a
+        # malformed/tampered token into a clean 401 instead of a 500.
+        user_id = uuid.UUID(raw_user_id)
+    except (JWTError, ValueError):
         raise credentials_exception
 
     user = db.query(models.User).filter(models.User.id == user_id).first()
@@ -80,3 +85,4 @@ def require_role(*allowed_roles: str):
             )
         return current_user
     return role_checker
+
