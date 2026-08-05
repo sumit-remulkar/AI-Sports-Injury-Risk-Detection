@@ -75,14 +75,9 @@ def get_current_user(
     return user
 
 
-def require_role(*allowed_roles: str):
-    """Usage: Depends(require_role('admin', 'coach'))"""
-    def role_checker(current_user: models.User = Depends(get_current_user)):
-        if current_user.role not in allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"This action requires one of these roles: {', '.join(allowed_roles)}",
-            )
-        return current_user
-    return role_checker
+# require_role(*allowed_roles) used to live here for the multi-role
+# (coach/physiotherapist/sports_scientist/admin) staff-viewing endpoints.
+# Single-athlete scope removed all of those, so there's no RBAC left
+# beyond "is this your own data" (handled inline in routers/video.py and
+# routers/athlete.py) -- nothing to reintroduce this for right now.
 

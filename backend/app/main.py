@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .database import engine
 from . import models
-from .routers import athlete, auth as auth_router, video
+from .routers import athlete, video
+from .routers.auth_router import router as auth_router
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -21,7 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_router.router)
+app.include_router(auth_router)
 app.include_router(athlete.router)
 app.include_router(video.router)
 

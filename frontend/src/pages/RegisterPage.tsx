@@ -1,15 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import type { UserRole } from "../types";
-
-const ROLES: { value: UserRole; label: string }[] = [
-  { value: "athlete", label: "Athlete" },
-  { value: "coach", label: "Coach" },
-  { value: "physiotherapist", label: "Physiotherapist" },
-  { value: "sports_scientist", label: "Sports Scientist" },
-  { value: "admin", label: "Administrator" },
-];
 
 export function RegisterPage() {
   const { register } = useAuth();
@@ -18,7 +9,6 @@ export function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState<UserRole>("athlete");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -33,7 +23,10 @@ export function RegisterPage() {
 
     setSubmitting(true);
     try {
-      await register({ full_name: fullName, email, password, role });
+      // Single-athlete scope: every account IS an athlete now, backend's
+      // UserCreate schema doesn't have a role field anymore -- nothing to
+      // pass here.
+      await register({ full_name: fullName, email, password });
       navigate("/dashboard");
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
@@ -84,24 +77,6 @@ export function RegisterPage() {
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-line bg-track-slate px-3 py-2 text-sm text-text-primary outline-none focus:border-pulse-cyan"
             />
-          </div>
-
-          <div>
-            <label htmlFor="role" className="mb-1 block text-sm text-text-muted">
-              Role
-            </label>
-            <select
-              id="role"
-              value={role}
-              onChange={(e) => setRole(e.target.value as UserRole)}
-              className="w-full rounded-lg border border-line bg-track-slate px-3 py-2 text-sm text-text-primary outline-none focus:border-pulse-cyan"
-            >
-              {ROLES.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div>

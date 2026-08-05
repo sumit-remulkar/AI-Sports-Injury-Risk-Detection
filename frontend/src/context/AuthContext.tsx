@@ -6,13 +6,12 @@ import {
   type ReactNode,
 } from "react";
 import { api, getToken, setToken, clearToken } from "../lib/api";
-import type { User, UserRole } from "../types";
+import type { User } from "../types";
 
 interface RegisterInput {
   full_name: string;
   email: string;
   password: string;
-  role: UserRole;
 }
 
 interface AuthContextValue {

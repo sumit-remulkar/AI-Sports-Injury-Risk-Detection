@@ -9,9 +9,6 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/register", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    if user.role not in schemas.VALID_ROLES:
-        raise HTTPException(status_code=400, detail=f"role must be one of {schemas.VALID_ROLES}")
-
     existing = crud.get_user_by_email(db, user.email)
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -37,3 +34,4 @@ def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
 @router.get("/me", response_model=schemas.UserResponse)
 def read_current_user(current_user=Depends(auth_utils.get_current_user)):
     return current_user
+

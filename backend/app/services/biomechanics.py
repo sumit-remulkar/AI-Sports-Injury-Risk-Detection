@@ -106,7 +106,26 @@ def knee_valgus_proxy(kp: dict[str, Point], side: str) -> Optional[float]:
     # Sign convention: positive = knee moved toward the body midline
     # (valgus direction) for that side.
     sign = 1 if side == "left" else -1
-    return round(sign * offset / leg_length * 100, 2)  # as % of leg length
+    percentage = round(sign * offset / leg_length * 100, 2)  # as % of leg length
+
+    # Sanity guard -- |percentage| > 100 is anatomically impossible: it
+    # would mean the knee sits sideways-displaced by MORE than the
+    # entire straight-line hip-to-ankle distance. In practice this fires
+    # almost exclusively on a bent-knee frame (classically running's
+    # swing phase): bending the knee brings hip and ankle physically
+    # closer together in a 2D projection, shrinking `leg_length` even
+    # though the leg's actual reach hasn't changed, which inflates the
+    # percentage for any offset, however small -- that's how a real
+    # clip produced a "-129.5%" reading here. Same failure family as the
+    # ROM-based symmetry fix in summarize() below: a metric implicitly
+    # assumes a static/bilateral (squat-like) posture and silently
+    # breaks on cyclical gait. Rather than report a number that isn't a
+    # real measurement, treat this frame as "not measurable" (None) --
+    # same honesty as an occluded joint already gets.
+    if abs(percentage) > 100:
+        return None
+
+    return percentage
 
 
 def analyze_frame(frame_number: int, kp: dict[str, Point]) -> FrameMetrics:
@@ -184,4 +203,5 @@ def summarize(frames: list[FrameMetrics]) -> dict:
         "knee_rom_asymmetry": knee_rom_asymmetry,
         "peak_knee_valgus_proxy": maxabs([f.knee_valgus_proxy for f in frames]),
     }
+
 
