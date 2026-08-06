@@ -22,6 +22,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["SECRET_KEY"] = "test-secret"
+# Keep these e2e tests deterministic and network-free regardless of the
+# ambient shell environment -- report_writer.py treats an unset/empty key
+# as "provider not configured" and returns None, same as a real network
+# failure would, so this doesn't change any test's pass/fail behavior.
+os.environ["XAI_API_KEY"] = ""
+os.environ["GEMINI_API_KEY"] = ""
 
 import cv2
 import numpy as np
@@ -92,7 +98,7 @@ def make_synthetic_video(path: str, num_frames: int = 20):
 
 def main():
     r = client.post("/auth/register", json={
-        "full_name": "T", "email": "a@test.com", "password": "testpass123", "role": "athlete",
+        "full_name": "T", "email": "a@test.com", "password": "testpass123",
     })
     assert r.status_code == 201, r.text
     token = client.post(
@@ -105,11 +111,19 @@ def main():
 
     with open(video_path, "rb") as f:
         r = client.post("/videos/upload", headers=headers, files={"file": ("test.mp4", f, "video/mp4")})
-    assert r.status_code == 201, r.text
-    data = r.json()
-    print("upload has_annotated_video:", data["has_annotated_video"])
-    assert data["has_annotated_video"] is True
-    video_id = data["video_id"]
+    # Async upload -- 202, and has_annotated_video is still False in THIS
+    # response (it's serialized before the background task runs). TestClient
+    # runs the background task synchronously as part of the same call
+    # though, so a follow-up GET already reflects the finished state.
+    assert r.status_code == 202, r.text
+    video_id = r.json()["video_id"]
+
+    r = client.get(f"/videos/{video_id}", headers=headers)
+    assert r.status_code == 200, r.text
+    detail = r.json()
+    print("processed has_annotated_video:", detail["has_annotated_video"])
+    assert detail["status"] == "completed"
+    assert detail["has_annotated_video"] is True
 
     r = client.get(f"/videos/{video_id}/annotated", headers=headers)
     assert r.status_code == 200, r.text
@@ -147,9 +161,10 @@ def main():
     else:
         print("ffprobe not found -- skipping codec verification (install ffmpeg to enable this check)")
 
-    # RBAC: a different athlete must not be able to fetch it either
+    # Single-athlete scope: a different athlete must not be able to fetch
+    # it either -- ownership is the only access rule now
     client.post("/auth/register", json={
-        "full_name": "Other", "email": "o@test.com", "password": "testpass123", "role": "athlete",
+        "full_name": "Other", "email": "o@test.com", "password": "testpass123",
     })
     other_token = client.post(
         "/auth/login", json={"email": "o@test.com", "password": "testpass123"}

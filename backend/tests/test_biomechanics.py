@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from backend.app.services.pose_utils import Point
-from backend.app.services.biomechanics import analyze_frame, summarize
+from backend.app.services.biomechanics import analyze_frame, summarize, knee_valgus_proxy
 
 
 def kp(overrides):
@@ -109,8 +109,49 @@ def main():
     )
     print("genuine asymmetry (restricted ROM) still correctly detected: OK")
 
+    # --- Regression test: knee_valgus_proxy must NOT report an
+    # anatomically-impossible percentage (>100% of leg length) on a
+    # bent-knee frame -- this is the bug a real running upload hit,
+    # producing a "-129.5%" reading that inflated an athlete's injury
+    # risk score off a math artifact, not a real movement signal.
+    # Bending the knee brings hip and ankle physically closer together
+    # in the 2D projection (foreshortening), which shrinks the
+    # hip-to-ankle `leg_length` denominator even though the leg's
+    # actual reach hasn't changed -- so the same offset that would be a
+    # sane ~30% on a mostly-straight leg inflates past 100% once the
+    # knee bends enough, exactly like running's swing phase does on
+    # nearly every stride. ---
+    bent_knee_kp = {
+        "left_hip": Point(100, 100, 2),
+        "left_knee": Point(160, 120, 2),
+        "left_ankle": Point(110, 140, 2),
+    }
+    bent_knee_valgus = knee_valgus_proxy(bent_knee_kp, "left")
+    print("bent-knee (foreshortened) valgus proxy:", bent_knee_valgus)
+    assert bent_knee_valgus is None, (
+        "a foreshortened bent-knee frame must return None (not measurable) "
+        "instead of an inflated, anatomically-impossible percentage -- "
+        "this is the exact bug that produced -129.5% on a real upload"
+    )
+    print("foreshortened bent-knee frame correctly returns None instead of a bogus percentage: OK")
+
+    # A normal, mostly-vertical leg (squat/standing-like -- same shape as
+    # the `squat` fixture earlier in this file) must be completely
+    # unaffected by the fix and still return a sane, bounded percentage.
+    normal_leg_kp = {
+        "left_hip": Point(155, 250, 2),
+        "left_knee": Point(200, 300, 2),
+        "left_ankle": Point(160, 380, 2),
+    }
+    normal_valgus = knee_valgus_proxy(normal_leg_kp, "left")
+    print("normal squat-like leg valgus proxy (should be unaffected):", normal_valgus)
+    assert normal_valgus is not None and abs(normal_valgus) <= 100
+    assert normal_valgus == 33.11, "unaffected case's exact value must not have shifted"
+    print("normal squat-like pose is unaffected by the fix: OK")
+
     print("\nALL BIOMECHANICS TESTS PASSED")
 
 
 if __name__ == "__main__":
     main()
+

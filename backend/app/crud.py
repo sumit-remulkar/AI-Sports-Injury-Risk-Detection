@@ -13,21 +13,24 @@ def get_user_by_email(db: Session, email: str):
 
 
 def create_user(db: Session, user: schemas.UserCreate) -> models.User:
+    # Single-athlete scope: every account IS an athlete -- no role field
+    # comes in from schemas.UserCreate anymore, so this is hardcoded
+    # rather than trusting client input the way a multi-role system would.
     db_user = models.User(
         full_name=user.full_name,
         email=user.email,
         password_hash=hash_password(user.password),
-        role=user.role,
+        role="athlete",
     )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
 
-    # Athletes get an empty profile row automatically so /athletes/me
-    # always has something to fetch/update.
-    if db_user.role == "athlete":
-        db.add(models.AthleteProfile(user_id=db_user.id))
-        db.commit()
+    # Every account gets an empty profile row automatically so /athletes/me
+    # always has something to fetch/update -- unconditional now that
+    # "athlete" is the only role that exists.
+    db.add(models.AthleteProfile(user_id=db_user.id))
+    db.commit()
 
     return db_user
 
@@ -48,10 +51,6 @@ def get_athlete(db: Session, athlete_id):
     ).first()
 
 
-def get_athletes(db: Session):
-    return db.query(models.AthleteProfile).all()
-
-
 def update_athlete(db: Session, athlete_id, athlete: schemas.AthleteUpdate):
     db_athlete = get_athlete(db, athlete_id)
     if not db_athlete:
@@ -62,15 +61,6 @@ def update_athlete(db: Session, athlete_id, athlete: schemas.AthleteUpdate):
 
     db.commit()
     db.refresh(db_athlete)
-    return db_athlete
-
-
-def delete_athlete(db: Session, athlete_id):
-    db_athlete = get_athlete(db, athlete_id)
-    if not db_athlete:
-        return None
-    db.delete(db_athlete)
-    db.commit()
     return db_athlete
 
 
@@ -146,4 +136,118 @@ def delete_video(db: Session, video_id):
     db.delete(video)  # cascades to pose_data rows via the model relationship
     db.commit()
     return video
+
+
+# ---------------------------------------------------------------------------
+# Injury Risk Prediction & Recommendations (Milestone 3)
+# ---------------------------------------------------------------------------
+# Deliberately thin, same as the rest of this file: these just do the DB
+# write/read. The scoring/recommendation logic itself lives in
+# services/injury_risk.py (pure, DB-free, unit-tested on its own) --
+# routers/video.py is what bridges the two, same pattern already used for
+# biomechanics (biomechanics.analyze_frame() -> crud.add_pose_data()).
+
+def create_injury_prediction(
+    db: Session,
+    athlete_id,
+    video_id,
+    injury_type: str,
+    risk_score: float,
+    risk_level: str,
+    contributing_factors: list[dict],
+) -> models.InjuryPrediction:
+    prediction = models.InjuryPrediction(
+        athlete_id=athlete_id,
+        video_id=video_id,
+        injury_type=injury_type,
+        risk_score=risk_score,
+        risk_level=risk_level,
+        contributing_factors=contributing_factors,
+    )
+    db.add(prediction)
+    db.commit()
+    db.refresh(prediction)
+    return prediction
+
+
+def create_recommendation(
+    db: Session,
+    prediction_id,
+    posture_correction: str,
+    exercise_plan: str,
+    recovery_plan: str,
+) -> models.Recommendation:
+    recommendation = models.Recommendation(
+        prediction_id=prediction_id,
+        posture_correction=posture_correction,
+        exercise_plan=exercise_plan,
+        recovery_plan=recovery_plan,
+    )
+    db.add(recommendation)
+    db.commit()
+    db.refresh(recommendation)
+    return recommendation
+
+
+def get_latest_prediction_for_video(db: Session, video_id):
+    """
+    Most recent prediction row for a given video. A video can accumulate
+    more than one over time (initial upload + any manual refresh calls) --
+    this is intentionally "latest wins" for what GET /videos/{id} shows,
+    while older rows stick around as history rather than being overwritten.
+    """
+    return (
+        db.query(models.InjuryPrediction)
+        .filter(models.InjuryPrediction.video_id == video_id)
+        .order_by(models.InjuryPrediction.prediction_date.desc())
+        .first()
+    )
+
+
+def get_recommendation_for_prediction(db: Session, prediction_id):
+    return (
+        db.query(models.Recommendation)
+        .filter(models.Recommendation.prediction_id == prediction_id)
+        .first()
+    )
+
+
+def update_prediction_narrative(db: Session, prediction_id, narrative: str):
+    """
+    Sets the best-effort AI-written narrative on an already-created
+    prediction row (see services/report_writer.py). Separate from
+    create_injury_prediction() rather than a parameter on it, since
+    narrative generation is optional/best-effort and happens right
+    after the row already exists -- this mirrors update_video_status()
+    updating a row created moments earlier by create_video().
+    """
+    prediction = (
+        db.query(models.InjuryPrediction)
+        .filter(models.InjuryPrediction.prediction_id == prediction_id)
+        .first()
+    )
+    if not prediction:
+        return None
+    prediction.ai_narrative = narrative
+    db.commit()
+    db.refresh(prediction)
+    return prediction
+
+
+def get_predictions_for_athlete(db: Session, athlete_id):
+    """
+    Full risk-assessment history for an athlete, across every video --
+    this is athlete_id-scoped (not video_id-scoped) on purpose: an
+    athlete's risk trend over time, across sessions/clips, is what an
+    "Athlete intelligence dashboard" (per README's Milestone 3 scope)
+    actually wants to chart, not just one video's assessments.
+    Most-recent-first, same ordering convention as get_videos_for_athlete.
+    """
+    return (
+        db.query(models.InjuryPrediction)
+        .filter(models.InjuryPrediction.athlete_id == athlete_id)
+        .order_by(models.InjuryPrediction.prediction_date.desc())
+        .all()
+    )
+
 

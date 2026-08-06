@@ -21,6 +21,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["SECRET_KEY"] = "test-secret"
+# Keep these e2e tests deterministic and network-free regardless of the
+# ambient shell environment -- report_writer.py treats an unset/empty key
+# as "provider not configured" and returns None, same as a real network
+# failure would, so this doesn't change any test's pass/fail behavior.
+os.environ["XAI_API_KEY"] = ""
+os.environ["GEMINI_API_KEY"] = ""
 
 import cv2
 import numpy as np
@@ -91,7 +97,7 @@ def make_synthetic_video(path: str, num_frames: int = 15):
 
 def main():
     client.post("/auth/register", json={
-        "full_name": "T", "email": "a@test.com", "password": "testpass123", "role": "athlete",
+        "full_name": "T", "email": "a@test.com", "password": "testpass123",
     })
     token = client.post(
         "/auth/login", json={"email": "a@test.com", "password": "testpass123"}
@@ -103,7 +109,10 @@ def main():
 
     with open(video_path, "rb") as f:
         r = client.post("/videos/upload", headers=headers, files={"file": ("test.mp4", f, "video/mp4")})
-    assert r.status_code == 201, r.text
+    # Async upload -- 202 Accepted (see routers/video.py). The physical
+    # file is still written synchronously before this response, though,
+    # so the on-disk check right below doesn't need to wait for anything.
+    assert r.status_code == 202, r.text
     video_id = r.json()["video_id"]
 
     db = TestingSessionLocal()
@@ -113,9 +122,11 @@ def main():
     assert os.path.exists(video_path_on_disk)
     print("uploaded video file exists on disk before delete: OK")
 
-    # A different athlete must NOT be able to delete someone else's video.
+    # A different athlete must NOT be able to delete someone else's video
+    # (single-athlete scope -- ownership is the only rule, no staff role
+    # to separately test anymore).
     client.post("/auth/register", json={
-        "full_name": "Other", "email": "o@test.com", "password": "testpass123", "role": "athlete",
+        "full_name": "Other", "email": "o@test.com", "password": "testpass123",
     })
     other_token = client.post(
         "/auth/login", json={"email": "o@test.com", "password": "testpass123"}
@@ -123,18 +134,6 @@ def main():
     r = client.delete(f"/videos/{video_id}", headers={"Authorization": f"Bearer {other_token}"})
     assert r.status_code == 403, r.text
     print("cross-athlete delete correctly blocked:", r.status_code)
-
-    # A coach (staff, can VIEW any athlete's videos) must also not be able
-    # to delete someone else's -- viewing access isn't delete access.
-    client.post("/auth/register", json={
-        "full_name": "Coach", "email": "c@test.com", "password": "testpass123", "role": "coach",
-    })
-    coach_token = client.post(
-        "/auth/login", json={"email": "c@test.com", "password": "testpass123"}
-    ).json()["access_token"]
-    r = client.delete(f"/videos/{video_id}", headers={"Authorization": f"Bearer {coach_token}"})
-    assert r.status_code == 403, r.text
-    print("coach (view-only role) delete correctly blocked:", r.status_code)
 
     # The owning athlete CAN delete it.
     r = client.delete(f"/videos/{video_id}", headers=headers)
