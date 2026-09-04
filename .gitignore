@@ -1,22 +1,28 @@
 # Python
-__pycache__/
-*.py[cod]
-*.pyc
-
-# Virtual Environment
 .venv/
 venv/
+__pycache__/
+*.pyc
+.pytest_cache/
 
-# Environment Variables
+# Secrets
 .env
 
-# Upload folder
-backend/uploads/
-
-# macOS
-.DS_Store
-
-node_modules/
+# Frontend
 frontend/node_modules/
 frontend/dist/
-EOF
+
+# User-generated media
+backend/uploads/
+
+# Large downloadable files
+models/*.task
+datasets/coco/
+datasets/mpii/
+datasets/human36m/
+datasets/sportspose/
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
